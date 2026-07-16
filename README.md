@@ -14,6 +14,10 @@ vault metadata as CSV and encrypts each vault with GPG.
 go build -o gopass .
 ```
 
+Go source follows the standard module-root layout: Cobra commands live in
+`cmd`, config persistence in `config`, and encrypted vault operations in
+`vault`.
+
 ## Usage
 
 ```text
