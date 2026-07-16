@@ -22,13 +22,16 @@ gopass add-key <key> [--vault <vault-name>]
 gopass get-key <key> [--vault <vault-name>]
 ```
 
-The vault flag defaults to `default` and can appear before or after the
-command. Both of these forms select the same vault:
+The vault flag defaults to `default` and belongs to the `add-key` and
+`get-key` commands. It can appear before or after the key:
 
 ```sh
-gopass --vault work add-key services/example
+gopass add-key --vault work services/example
 gopass add-key services/example --vault work
 ```
+
+Run `gopass --help` or `gopass <command> --help` for Cobra-generated command
+and flag documentation.
 
 On first use, GoPass creates `~/.gopassrc` and an encrypted default vault at
 `~/.gopass/default.gopass`. Creating a named vault initializes an empty
