@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 func main() {
-	root := newRootCommand()
+	root := newRootCommand(os.Args[1:])
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func newRootCommand() *cobra.Command {
+func newRootCommand(args []string) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "gopass",
 		Short:         "A GPG-backed command-line password manager",
@@ -30,12 +31,16 @@ func newRootCommand() *cobra.Command {
 			return nil
 		},
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			if len(args) > 0 && strings.HasPrefix(args[0], "-") {
+				return fmt.Errorf("flags must follow a command")
+			}
 			if err := boot(); err != nil {
 				return fmt.Errorf("initialize gopass: %w", err)
 			}
 			return nil
 		},
 	}
+	root.SetArgs(args)
 
 	root.AddCommand(
 		newCreateVaultCommand(),
