@@ -1,68 +1,54 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"errors"
+	"os"
+	"os/exec"
 )
 
 type GetKeyInput struct {
-	key string
+	key   string
 	vault string
 }
 
-func parseAddKey(args []string, vault string) (*AddKeyInput, error) {
-	if len(args) != 2 {
-		return nil, ErrMissingArguments
+func parseGetKey(args []string, vault string) (*GetKeyInput, error) {
+	if len(args) != 1 {
+		return nil, usageError(string(GetKey))
 	}
-
-	return &AddKeyInput{
-		key: args[1],
-		vault: vaultPath
-	}, nil
-	
+	return &GetKeyInput{key: args[0], vault: vault}, nil
 }
 
-func executeAddKey(input *AddKeyInput) error {
+func executeGetKey(input *GetKeyInput) error {
 	vault, err := getVault(input.vault)
-	if err!=nil {
-		return fmt.Errorf("%w: %w", ErrGetVault, err)
-	}
-	secret, err = vault.getKey(input.key)
-	if err!=nil {
-		return fmt.Errorf("%w: %w", ErrGetKey, err)
-	}
-	
-	err = displaySecret(input.key, input.secret)
 	if err != nil {
 		return err
 	}
+	secret, err := vault.getKey(input.key)
+	if err != nil {
+		return err
+	}
+	return displaySecret(input.key, secret)
 }
 
-func displaySecret(key string, secret string) error {
-	content := []byte(
-		"Key: " + key + "\n" +
-		"Secret: " + secret + "\n",
-	)
+func displaySecret(key, secret string) error {
+	content := []byte("Key: " + key + "\nSecret: " + secret + "\n")
+	defer clearBytes(content)
 
 	cmd := exec.Command("less", "-R")
-
 	cmd.Stdin = bytes.NewReader(content)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	return cmd.Run()
 }
 
-func handleGetKey(args []string, vault string) {
-	input, err := parseGetKey(args, vault);
+func handleGetKey(args []string, vaultName string) error {
+	input, err := parseGetKey(args, vaultName)
 	if err != nil {
-		fmt.Println(err);
-		return;
+		return err
 	}
-	
-	err = executeGetKey(input);
-	if err != nil {
-		fmt.Println(err);
-		return;
+	if err := executeGetKey(input); err != nil {
+		return fmt.Errorf("get key %q from vault %q: %w", input.key, input.vault, err)
 	}
+	return nil
 }
