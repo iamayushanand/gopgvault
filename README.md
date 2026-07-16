@@ -11,8 +11,11 @@ vault metadata as CSV and encrypts each vault with GPG.
 ## Build
 
 ```sh
-go build -o gopass .
+go build -o gopass ./src
 ```
+
+Go source is organized under `src/`: Cobra commands live in `src/cmd`, config
+persistence in `src/config`, and encrypted vault operations in `src/vault`.
 
 ## Usage
 
