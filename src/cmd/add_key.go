@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"fmt"
@@ -8,23 +8,23 @@ import (
 	"golang.org/x/term"
 )
 
-type AddKeyInput struct {
+type addKeyInput struct {
 	key   string
 	vault string
 }
 
-func newAddKeyCommand() *cobra.Command {
-	input := &AddKeyInput{vault: DefaultVaultName}
+func (a *application) newAddKeyCommand() *cobra.Command {
+	input := &addKeyInput{vault: DefaultVaultName}
 	command := &cobra.Command{
 		Use:   commandAddKey + " <key>",
 		Short: "Add a secret to a vault",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(command *cobra.Command, args []string) error {
 			input.key = args[0]
-			if err := executeAddKey(input); err != nil {
+			if err := a.addKey(input); err != nil {
 				return fmt.Errorf("add key %q to vault %q: %w", input.key, input.vault, err)
 			}
-			cmd.Printf("Successfully added key %q to vault %q\n", input.key, input.vault)
+			command.Printf("Successfully added key %q to vault %q\n", input.key, input.vault)
 			return nil
 		},
 	}
@@ -32,26 +32,25 @@ func newAddKeyCommand() *cobra.Command {
 	return command
 }
 
-func executeAddKey(input *AddKeyInput) error {
-	secret, err := getSecretFromUser()
+func (a *application) addKey(input *addKeyInput) error {
+	secret, err := readSecret()
 	if err != nil {
 		return fmt.Errorf("read secret: %w", err)
 	}
-
-	vault, err := getVault(input.vault)
+	selected, err := a.getVault(input.vault)
 	if err != nil {
 		return err
 	}
-	return vault.addKey(input.key, secret)
+	return selected.AddKey(input.key, secret)
 }
 
-func getSecretFromUser() (string, error) {
+func readSecret() (string, error) {
 	fmt.Print("Enter secret: ")
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
 	if err != nil {
 		return "", err
 	}
-	defer clearBytes(secret)
+	defer clear(secret)
 	return string(secret), nil
 }
