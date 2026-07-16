@@ -43,7 +43,11 @@ func createVaultFile(vaultPath string) error {
 		return err
 	}
 
-	return encrypt(vaultPath, nil, false)
+	if err := encrypt(vaultPath, nil, false); err != nil {
+		_ = os.Remove(vaultPath)
+		return err
+	}
+	return nil
 }
 
 func (v *Vault) unlock() error {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -72,6 +71,9 @@ func run(args []string) error {
 	if parsed.command == CreateVault && parsed.vaultSet {
 		return fmt.Errorf("--vault is not valid for create-vault")
 	}
+	if parsed.command != CreateVault && parsed.command != AddKey && parsed.command != GetKey {
+		return fmt.Errorf("unknown command %q\n%s", parsed.command, usage())
+	}
 
 	if err := boot(); err != nil {
 		return fmt.Errorf("initialize gopass: %w", err)
@@ -84,9 +86,8 @@ func run(args []string) error {
 		return handleAddKey(parsed.args, parsed.vault)
 	case GetKey:
 		return handleGetKey(parsed.args, parsed.vault)
-	default:
-		return fmt.Errorf("unknown command %q\n%s", parsed.command, usage())
 	}
+	return nil
 }
 
 func usage() string {
@@ -144,8 +145,4 @@ func usageError(command string) error {
 		commandUsage = "get-key <key> [--vault <vault-name>]"
 	}
 	return fmt.Errorf("%w: usage: gopass %s", ErrMissingArguments, commandUsage)
-}
-
-func isMissingArguments(err error) bool {
-	return errors.Is(err, ErrMissingArguments)
 }
