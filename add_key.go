@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
@@ -12,11 +13,23 @@ type AddKeyInput struct {
 	vault string
 }
 
-func parseAddKey(args []string, vault string) (*AddKeyInput, error) {
-	if len(args) != 1 {
-		return nil, usageError(string(AddKey))
+func newAddKeyCommand() *cobra.Command {
+	input := &AddKeyInput{vault: DefaultVaultName}
+	command := &cobra.Command{
+		Use:   commandAddKey + " <key>",
+		Short: "Add a secret to a vault",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input.key = args[0]
+			if err := executeAddKey(input); err != nil {
+				return fmt.Errorf("add key %q to vault %q: %w", input.key, input.vault, err)
+			}
+			cmd.Printf("Successfully added key %q to vault %q\n", input.key, input.vault)
+			return nil
+		},
 	}
-	return &AddKeyInput{key: args[0], vault: vault}, nil
+	command.Flags().StringVar(&input.vault, vaultFlagName, DefaultVaultName, "Vault to use")
+	return command
 }
 
 func executeAddKey(input *AddKeyInput) error {
@@ -29,10 +42,7 @@ func executeAddKey(input *AddKeyInput) error {
 	if err != nil {
 		return err
 	}
-	if err := vault.addKey(input.key, secret); err != nil {
-		return err
-	}
-	return nil
+	return vault.addKey(input.key, secret)
 }
 
 func getSecretFromUser() (string, error) {
@@ -44,16 +54,4 @@ func getSecretFromUser() (string, error) {
 	}
 	defer clearBytes(secret)
 	return string(secret), nil
-}
-
-func handleAddKey(args []string, vaultName string) error {
-	input, err := parseAddKey(args, vaultName)
-	if err != nil {
-		return err
-	}
-	if err := executeAddKey(input); err != nil {
-		return fmt.Errorf("add key %q to vault %q: %w", input.key, input.vault, err)
-	}
-	fmt.Printf("Successfully added key %q to vault %q\n", input.key, input.vault)
-	return nil
 }

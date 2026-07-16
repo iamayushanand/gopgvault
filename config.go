@@ -24,7 +24,7 @@ func getConfig() (*Config, error) {
 		return nil, err
 	}
 
-	config := &Config{configPath: filepath.Join(home, ".gopassrc")}
+	config := &Config{configPath: filepath.Join(home, configFilename)}
 	if err := config.createIfNotExists(); err != nil {
 		return nil, err
 	}
@@ -42,11 +42,11 @@ func (c *Config) createIfNotExists() error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(c.configPath), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(c.configPath), directoryPermissions); err != nil {
 		return err
 	}
 
-	file, err := os.OpenFile(c.configPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(c.configPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, filePermissions)
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (c *Config) insertEntry(entry ConfigEntry) error {
 		return err
 	}
 
-	file, err := os.OpenFile(c.configPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(c.configPath, os.O_APPEND|os.O_WRONLY, filePermissions)
 	if err != nil {
 		return err
 	}
