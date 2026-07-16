@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/iamayushanand/gopass/src/vault"
+	"github.com/iamayushanand/gopass/vault"
 	"github.com/spf13/cobra"
 )
 

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	command "github.com/iamayushanand/gopass/src/cmd"
+	command "github.com/iamayushanand/gopass/cmd"
 )
 
 func main() {

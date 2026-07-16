@@ -9,10 +9,10 @@ import (
 )
 
 func TestVaultWipe(t *testing.T) {
-	selected := &Vault{entries: []Entry{{key: "key", secret: "secret"}}}
-	selected.wipe()
-	if selected.entries != nil {
-		t.Fatalf("wipe() left entries = %#v", selected.entries)
+	subject := &Vault{entries: []Entry{{key: "key", secret: "secret"}}}
+	subject.wipe()
+	if subject.entries != nil {
+		t.Fatalf("wipe() left entries = %#v", subject.entries)
 	}
 }
 

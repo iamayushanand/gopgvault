@@ -18,7 +18,7 @@ type getKeyInput struct {
 
 func (a *application) newGetKeyCommand() *cobra.Command {
 	input := &getKeyInput{vault: DefaultVaultName}
-	command := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   commandGetKey + " <key>",
 		Short: "Display a secret from a vault",
 		Args:  cobra.ExactArgs(1),
@@ -30,8 +30,8 @@ func (a *application) newGetKeyCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&input.vault, vaultFlagName, DefaultVaultName, "Vault to use")
-	return command
+	cmd.Flags().StringVar(&input.vault, vaultFlagName, DefaultVaultName, "Vault to use")
+	return cmd
 }
 
 func (a *application) getKey(input *getKeyInput) error {

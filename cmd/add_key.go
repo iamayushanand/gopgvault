@@ -15,7 +15,7 @@ type addKeyInput struct {
 
 func (a *application) newAddKeyCommand() *cobra.Command {
 	input := &addKeyInput{vault: DefaultVaultName}
-	command := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   commandAddKey + " <key>",
 		Short: "Add a secret to a vault",
 		Args:  cobra.ExactArgs(1),
@@ -28,8 +28,8 @@ func (a *application) newAddKeyCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().StringVar(&input.vault, vaultFlagName, DefaultVaultName, "Vault to use")
-	return command
+	cmd.Flags().StringVar(&input.vault, vaultFlagName, DefaultVaultName, "Vault to use")
+	return cmd
 }
 
 func (a *application) addKey(input *addKeyInput) error {
