@@ -21,9 +21,8 @@ type VaultEntry struct {
 }
 
 func getVault(vaultName string) (*Vault, error) {
-	config, err := getConfig()
-	if err != nil {
-		return nil, err
+	if config == nil {
+		return nil, ErrConfigNotInitialized
 	}
 
 	vaultPath, found := config.findVault(vaultName)
@@ -34,7 +33,7 @@ func getVault(vaultName string) (*Vault, error) {
 }
 
 func createVaultFile(vaultPath string) error {
-	if err := os.MkdirAll(filepath.Dir(vaultPath), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(vaultPath), directoryPermissions); err != nil {
 		return err
 	}
 	if _, err := os.Stat(vaultPath); err == nil {
@@ -51,7 +50,7 @@ func createVaultFile(vaultPath string) error {
 }
 
 func (v *Vault) unlock() error {
-	cmd := exec.Command("gpg", "--quiet", "--decrypt", v.vaultPath)
+	cmd := exec.Command(gpgExecutable, "--quiet", "--decrypt", v.vaultPath)
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
 
@@ -108,7 +107,7 @@ func encrypt(vaultPath string, content []byte, overwrite bool) error {
 		"--output", vaultPath,
 	)
 
-	cmd := exec.Command("gpg", args...)
+	cmd := exec.Command(gpgExecutable, args...)
 	cmd.Stdin = bytes.NewReader(content)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

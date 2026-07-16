@@ -18,21 +18,23 @@ type ConfigEntry struct {
 	filepath  string
 }
 
-func getConfig() (*Config, error) {
+var config *Config
+
+func loadConfig() (*Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
 
-	config := &Config{configPath: filepath.Join(home, ".gopassrc")}
-	if err := config.createIfNotExists(); err != nil {
+	loaded := &Config{configPath: filepath.Join(home, configFilename)}
+	if err := loaded.createIfNotExists(); err != nil {
 		return nil, err
 	}
-	if err := config.load(); err != nil {
+	if err := loaded.load(); err != nil {
 		return nil, err
 	}
 
-	return config, nil
+	return loaded, nil
 }
 
 func (c *Config) createIfNotExists() error {
@@ -42,11 +44,11 @@ func (c *Config) createIfNotExists() error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(c.configPath), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(c.configPath), directoryPermissions); err != nil {
 		return err
 	}
 
-	file, err := os.OpenFile(c.configPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(c.configPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, filePermissions)
 	if err != nil {
 		return err
 	}
@@ -95,7 +97,7 @@ func (c *Config) insertEntry(entry ConfigEntry) error {
 		return err
 	}
 
-	file, err := os.OpenFile(c.configPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	file, err := os.OpenFile(c.configPath, os.O_APPEND|os.O_WRONLY, filePermissions)
 	if err != nil {
 		return err
 	}

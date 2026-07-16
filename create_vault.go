@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 type CreateVaultInput struct {
@@ -10,17 +12,27 @@ type CreateVaultInput struct {
 	filepath  string
 }
 
-func parseCreateVault(args []string) (*CreateVaultInput, error) {
-	if len(args) != 2 {
-		return nil, usageError(string(CreateVault))
+func newCreateVaultCommand() *cobra.Command {
+	input := &CreateVaultInput{}
+	return &cobra.Command{
+		Use:   commandCreateVault + " <vault-name> <filepath>",
+		Short: "Create an encrypted password vault",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input.vaultName = args[0]
+			input.filepath = args[1]
+			if err := executeCreateVault(input); err != nil {
+				return fmt.Errorf("create vault %q: %w", input.vaultName, err)
+			}
+			cmd.Printf("Successfully created vault %q\n", input.vaultName)
+			return nil
+		},
 	}
-	return &CreateVaultInput{vaultName: args[0], filepath: args[1]}, nil
 }
 
 func executeCreateVault(input *CreateVaultInput) error {
-	config, err := getConfig()
-	if err != nil {
-		return err
+	if config == nil {
+		return ErrConfigNotInitialized
 	}
 	entry := ConfigEntry{vaultName: input.vaultName, filepath: input.filepath}
 	if err := config.validateEntry(entry); err != nil {
@@ -36,17 +48,5 @@ func executeCreateVault(input *CreateVaultInput) error {
 		}
 		return fmt.Errorf("register vault: %w", err)
 	}
-	return nil
-}
-
-func handleCreateVault(args []string) error {
-	input, err := parseCreateVault(args)
-	if err != nil {
-		return err
-	}
-	if err := executeCreateVault(input); err != nil {
-		return fmt.Errorf("create vault %q: %w", input.vaultName, err)
-	}
-	fmt.Printf("Successfully created vault %q\n", input.vaultName)
 	return nil
 }

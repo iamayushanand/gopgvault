@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +34,71 @@ func TestCreateVaultFileRefusesExistingFile(t *testing.T) {
 	}
 }
 
+func TestGetVaultRequiresBoot(t *testing.T) {
+	config = nil
+	t.Cleanup(func() { config = nil })
+	if _, err := getVault(DefaultVaultName); !errors.Is(err, ErrConfigNotInitialized) {
+		t.Fatalf("getVault() error = %v", err)
+	}
+}
+
+func TestBootRegistersExistingDefaultVaultWithoutOverwriting(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	config = nil
+	t.Cleanup(func() { config = nil })
+
+	vaultPath := filepath.Join(home, vaultDirectoryName, defaultVaultFilename)
+	if err := os.MkdirAll(filepath.Dir(vaultPath), directoryPermissions); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("existing encrypted content")
+	if err := os.WriteFile(vaultPath, original, filePermissions); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := boot(); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	registeredPath, found := config.findVault(DefaultVaultName)
+	if !found || registeredPath != vaultPath {
+		t.Fatalf("default vault = %q, %v", registeredPath, found)
+	}
+	content, err := os.ReadFile(vaultPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != string(original) {
+		t.Fatalf("existing vault was overwritten: %q", content)
+	}
+}
+
+func TestBootDoesNotRemoveExistingVaultOnRegistrationFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	config = nil
+	t.Cleanup(func() { config = nil })
+
+	vaultPath := filepath.Join(home, vaultDirectoryName, defaultVaultFilename)
+	if err := os.MkdirAll(filepath.Dir(vaultPath), directoryPermissions); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(vaultPath, []byte("keep me"), filePermissions); err != nil {
+		t.Fatal(err)
+	}
+	configContent := fmt.Sprintf("other,%s\n", vaultPath)
+	if err := os.WriteFile(filepath.Join(home, configFilename), []byte(configContent), filePermissions); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := boot(); !errors.Is(err, ErrVaultPathExists) {
+		t.Fatalf("boot() error = %v", err)
+	}
+	if _, err := os.Stat(vaultPath); err != nil {
+		t.Fatalf("existing vault was removed: %v", err)
+	}
+}
+
 func TestEncryptedVaultWorkflow(t *testing.T) {
 	gpg, err := exec.LookPath("gpg")
 	if err != nil {
@@ -50,6 +116,8 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("GNUPGHOME", gnupgHome)
+	config = nil
+	t.Cleanup(func() { config = nil })
 
 	generateKey := exec.Command(
 		gpg,
@@ -119,5 +187,16 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 	malformed := &Vault{vaultPath: malformedPath}
 	if err := malformed.unlock(); !errors.Is(err, ErrInvalidVaultEntry) {
 		t.Fatalf("malformed unlock() error = %v", err)
+	}
+
+	configPath := filepath.Join(home, configFilename)
+	if err := os.Rename(configPath, configPath+".moved"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := getVault("work"); err != nil {
+		t.Fatalf("getVault() reread config after boot: %v", err)
+	}
+	if err := boot(); err != nil {
+		t.Fatalf("idempotent boot reread config: %v", err)
 	}
 }
