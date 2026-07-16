@@ -46,11 +46,16 @@ func newRootCommand() *cobra.Command {
 }
 
 func boot() error {
-	loadedConfig, err := getConfig()
+	if config != nil {
+		return nil
+	}
+
+	loadedConfig, err := loadConfig()
 	if err != nil {
 		return err
 	}
 	if _, found := loadedConfig.findVault(DefaultVaultName); found {
+		config = loadedConfig
 		return nil
 	}
 
@@ -74,5 +79,6 @@ func boot() error {
 		}
 		return err
 	}
+	config = loadedConfig
 	return nil
 }

@@ -21,9 +21,8 @@ type VaultEntry struct {
 }
 
 func getVault(vaultName string) (*Vault, error) {
-	config, err := getConfig()
-	if err != nil {
-		return nil, err
+	if config == nil {
+		return nil, ErrConfigNotInitialized
 	}
 
 	vaultPath, found := config.findVault(vaultName)

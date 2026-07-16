@@ -31,9 +31,8 @@ func newCreateVaultCommand() *cobra.Command {
 }
 
 func executeCreateVault(input *CreateVaultInput) error {
-	config, err := getConfig()
-	if err != nil {
-		return err
+	if config == nil {
+		return ErrConfigNotInitialized
 	}
 	entry := ConfigEntry{vaultName: input.vaultName, filepath: input.filepath}
 	if err := config.validateEntry(entry); err != nil {

@@ -18,21 +18,23 @@ type ConfigEntry struct {
 	filepath  string
 }
 
-func getConfig() (*Config, error) {
+var config *Config
+
+func loadConfig() (*Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
 
-	config := &Config{configPath: filepath.Join(home, configFilename)}
-	if err := config.createIfNotExists(); err != nil {
+	loaded := &Config{configPath: filepath.Join(home, configFilename)}
+	if err := loaded.createIfNotExists(); err != nil {
 		return nil, err
 	}
-	if err := config.load(); err != nil {
+	if err := loaded.load(); err != nil {
 		return nil, err
 	}
 
-	return config, nil
+	return loaded, nil
 }
 
 func (c *Config) createIfNotExists() error {
