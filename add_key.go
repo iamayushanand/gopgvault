@@ -2,66 +2,58 @@ package main
 
 import (
 	"fmt"
-	"errors"
+	"os"
+
+	"golang.org/x/term"
 )
 
 type AddKeyInput struct {
-	key string
+	key   string
 	vault string
 }
 
 func parseAddKey(args []string, vault string) (*AddKeyInput, error) {
-	if len(args) != 2 {
-		return nil, ErrMissingArguments
+	if len(args) != 1 {
+		return nil, usageError(string(AddKey))
 	}
-
-	return &AddKeyInput{
-		key: args[1],
-		vault: vaultPath
-	}, nil
-	
+	return &AddKeyInput{key: args[0], vault: vault}, nil
 }
 
 func executeAddKey(input *AddKeyInput) error {
-	secret, err := get_secret_from_user()
-	if err!=nil {
-		return fmt.Errorf("%w: %w", ErrGetSecret, err)
+	secret, err := getSecretFromUser()
+	if err != nil {
+		return fmt.Errorf("read secret: %w", err)
 	}
+
 	vault, err := getVault(input.vault)
-	if err!=nil {
-		return fmt.Errorf("%w: %w", ErrGetVault, err)
+	if err != nil {
+		return err
 	}
-	err = vault.addKey(key, secret)
-	if err!=nil {
-		return fmt.Errorf("%w: %w", ErrAddKey, err)
+	if err := vault.addKey(input.key, secret); err != nil {
+		return err
 	}
+	return nil
 }
 
-
-func get_secret_from_user() (string, error) {
+func getSecretFromUser() (string, error) {
 	fmt.Print("Enter secret: ")
-
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println() // Move to the next line after Enter is pressed.
-
+	fmt.Println()
 	if err != nil {
 		return "", err
 	}
-
+	defer clearBytes(secret)
 	return string(secret), nil
 }
 
-func handleAddKey(args []string, vault string) {
-	input, err := parseAddKey(args, vault);
+func handleAddKey(args []string, vaultName string) error {
+	input, err := parseAddKey(args, vaultName)
 	if err != nil {
-		fmt.Println(err);
-		return;
+		return err
 	}
-	
-	err = executeAddKey(input);
-	if err != nil {
-		fmt.Println(err);
-		return;
+	if err := executeAddKey(input); err != nil {
+		return fmt.Errorf("add key %q to vault %q: %w", input.key, input.vault, err)
 	}
-	fmt.Println("Successfully added key %s to vault %s", input.key, input.vault)
+	fmt.Printf("Successfully added key %q to vault %q\n", input.key, input.vault)
+	return nil
 }

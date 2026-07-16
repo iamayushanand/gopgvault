@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 type Vault struct {
@@ -25,100 +26,109 @@ func getVault(vaultName string) (*Vault, error) {
 		return nil, err
 	}
 
-	for _, entry := range config.entries {
-		if entry.vaultName == vaultName {
-			return &Vault{
-				vaultPath: entry.filepath,
-			}, nil
-		}
+	vaultPath, found := config.findVault(vaultName)
+	if !found {
+		return nil, fmt.Errorf("%w: %q", ErrVaultNotFound, vaultName)
+	}
+	return &Vault{vaultPath: vaultPath}, nil
+}
+
+func createVaultFile(vaultPath string) error {
+	if err := os.MkdirAll(filepath.Dir(vaultPath), 0o700); err != nil {
+		return err
+	}
+	if _, err := os.Stat(vaultPath); err == nil {
+		return fmt.Errorf("%w: %q", ErrVaultFileExists, vaultPath)
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 
-	return nil, fmt.Errorf("%w: %s", ErrVaultNotFound, vaultName)
+	if err := encrypt(vaultPath, nil, false); err != nil {
+		_ = os.Remove(vaultPath)
+		return err
+	}
+	return nil
 }
 
 func (v *Vault) unlock() error {
-	cmd := exec.Command(
-		"gpg",
-		"--quiet",
-		"--decrypt",
-		v.vaultPath,
-	)
-
+	cmd := exec.Command("gpg", "--quiet", "--decrypt", v.vaultPath)
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("%w: %w: %s", ErrGpgDecryptionFailure, err, stderr.String())
+		return fmt.Errorf("%w: %w: %s", ErrGPGDecryption, err, stderr.String())
 	}
-
-	reader := csv.NewReader(bytes.NewReader(out))
+	defer clearBytes(out)
 
 	v.entries = nil
-
+	reader := csv.NewReader(bytes.NewReader(out))
 	for {
 		record, err := reader.Read()
 		if err == io.EOF {
-			break
+			return nil
 		}
 		if err != nil {
 			return err
 		}
-
 		if len(record) != 2 {
-			return fmt.Errorf("invalid vault entry")
+			return ErrInvalidVaultEntry
 		}
 
-		v.entries = append(v.entries, VaultEntry{
-			key:    record[0],
-			secret: record[1],
-		})
+		v.entries = append(v.entries, VaultEntry{key: record[0], secret: record[1]})
 	}
-
-	return nil
 }
 
 func (v *Vault) lock() error {
-	var buf bytes.Buffer
-
-	writer := csv.NewWriter(&buf)
-
+	var content bytes.Buffer
+	writer := csv.NewWriter(&content)
 	for _, entry := range v.entries {
 		if err := writer.Write([]string{entry.key, entry.secret}); err != nil {
 			return err
 		}
 	}
-
 	writer.Flush()
 	if err := writer.Error(); err != nil {
 		return err
 	}
 
-	cmd := exec.Command(
-		"gpg",
-		"--quiet",
-		"--batch",
-		"--yes",
+	return encrypt(v.vaultPath, content.Bytes(), true)
+}
+
+func encrypt(vaultPath string, content []byte, overwrite bool) error {
+	args := []string{"--quiet", "--batch"}
+	if overwrite {
+		args = append(args, "--yes")
+	}
+	args = append(args,
 		"--encrypt",
 		"--default-recipient-self",
-		"--output", v.vaultPath,
+		"--output", vaultPath,
 	)
 
-	cmd.Stdin = &buf
-
+	cmd := exec.Command("gpg", args...)
+	cmd.Stdin = bytes.NewReader(content)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%w: %w: %s", ErrGpgEncryptionFailure, err, out)
+		return fmt.Errorf("%w: %w: %s", ErrGPGEncryption, err, out)
 	}
-
 	return nil
 }
 
 func (v *Vault) wipe() {
+	for i := range v.entries {
+		v.entries[i].key = ""
+		v.entries[i].secret = ""
+	}
 	v.entries = nil
+}
+
+func clearBytes(value []byte) {
+	for i := range value {
+		value[i] = 0
+	}
 }
 
 func (v *Vault) findEntry(key string) (*VaultEntry, bool) {
@@ -127,7 +137,6 @@ func (v *Vault) findEntry(key string) (*VaultEntry, bool) {
 			return &v.entries[i], true
 		}
 	}
-
 	return nil, false
 }
 
@@ -138,14 +147,9 @@ func (v *Vault) addKey(key, secret string) error {
 	defer v.wipe()
 
 	if _, found := v.findEntry(key); found {
-		return ErrVaultKeyExists
+		return fmt.Errorf("%w: %q", ErrVaultKeyExists, key)
 	}
-
-	v.entries = append(v.entries, VaultEntry{
-		key:    key,
-		secret: secret,
-	})
-
+	v.entries = append(v.entries, VaultEntry{key: key, secret: secret})
 	return v.lock()
 }
 
@@ -157,8 +161,7 @@ func (v *Vault) getKey(key string) (string, error) {
 
 	entry, found := v.findEntry(key)
 	if !found {
-		return "", ErrVaultKeyNotFound
+		return "", fmt.Errorf("%w: %q", ErrVaultKeyNotFound, key)
 	}
-
 	return entry.secret, nil
 }

@@ -2,66 +2,51 @@ package main
 
 import (
 	"fmt"
-	"errors"
+	"os"
 )
 
 type CreateVaultInput struct {
 	vaultName string
-	filepath string
-}
-
-func handleCreateVault(args []string) {
-	input, err := parseCreateVault(args)
-	if err != nil {
-		if errors.Is(err, ErrMissingArguments) {
-			fmt.Printf("Usage: create-vault <vault-name> <path>")
-			return
-		}
-		return
-	}
-	
-	err = executeCreateVault(input)
-	if err != nil {
-		fmt.Printf("Error while creating vault: %v\n", err)
-	}
+	filepath  string
 }
 
 func parseCreateVault(args []string) (*CreateVaultInput, error) {
-	if len(args) != 3 {
-		return nil, ErrMissingArguments
+	if len(args) != 2 {
+		return nil, usageError(string(CreateVault))
 	}
-	return &CreateVaultInput {
-		vaultName: args[1],
-		filePath: args[2]
-	}, nil
+	return &CreateVaultInput{vaultName: args[0], filepath: args[1]}, nil
 }
 
 func executeCreateVault(input *CreateVaultInput) error {
-	err := create_vault(input.vaultName, input.filepath)
+	config, err := getConfig()
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrCreationError, err)
+		return err
 	}
-	display_creation_status(err)
+	entry := ConfigEntry{vaultName: input.vaultName, filepath: input.filepath}
+	if err := config.validateEntry(entry); err != nil {
+		return err
+	}
+
+	if err := createVaultFile(input.filepath); err != nil {
+		return err
+	}
+	if err := config.insertEntry(entry); err != nil {
+		if removeErr := os.Remove(input.filepath); removeErr != nil {
+			return fmt.Errorf("register vault: %w (cleanup failed: %v)", err, removeErr)
+		}
+		return fmt.Errorf("register vault: %w", err)
+	}
+	return nil
 }
 
-func create_vault(input *CreateVaultInput) (string, error) {
-	configEntry := &ConfigEntry{
-		vaultName: input.vaultName,
-		filepath: input.filepath
-	}
-	
-	err := config.insertEntry(configEntry)
+func handleCreateVault(args []string) error {
+	input, err := parseCreateVault(args)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrVaultCreation, err)
+		return err
 	}
-}
-
-
-func display_creation_status(err error) {
-	if err != nil {
-		fmt.Printf("Failed to create vault: %v\n", err)
-		return
+	if err := executeCreateVault(input); err != nil {
+		return fmt.Errorf("create vault %q: %w", input.vaultName, err)
 	}
-
-	fmt.Printf("Successfully created vault \n")
+	fmt.Printf("Successfully created vault %q\n", input.vaultName)
+	return nil
 }
