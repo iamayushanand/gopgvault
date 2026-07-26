@@ -67,3 +67,25 @@ On first use, GoPass creates `~/.gopassrc` and an encrypted default vault at
 `~/.gopass/default.gopass`. Creating a named vault initializes an empty
 encrypted file and registers its path in `~/.gopassrc`. Existing files are
 never overwritten by `create-vault`.
+
+## Security Notes
+
+GoPass keeps application-owned secrets in mutable byte buffers and wipes those
+buffers after use. This is a best-effort reduction of plaintext lifetime, not a
+guarantee of secure memory erasure: the Go compiler and runtime may make copies,
+memory can be swapped or included in a core dump, and `encoding/csv` creates a
+short-lived immutable string while decoding each record.
+
+Each vault is one encrypted document. Reading or modifying an entry therefore
+decrypts the vault, although buffers are cleared when the operation completes.
+The GPG and pager subprocesses and their kernel pipes also temporarily handle
+plaintext.
+
+Secret display runs `less` in secure mode, disables its history, removes
+user-configurable preprocessors and option variables, and does not allow raw
+terminal escape rendering. A terminal emulator, multiplexer, screen recorder,
+or redirected output may still capture displayed content.
+
+CSV imports are plaintext files. Prefer tightly restricted permissions and
+delete the source immediately after a successful import; deletion may not be
+secure erasure on SSDs, copy-on-write filesystems, snapshots, or backups.
