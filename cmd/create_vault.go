@@ -9,13 +9,14 @@ import (
 )
 
 type createVaultInput struct {
-	name string
-	path string
+	name         string
+	path         string
+	gpgRecipient string
 }
 
 func (a *application) newCreateVaultCommand() *cobra.Command {
 	input := &createVaultInput{}
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   commandCreateVault + " <vault-name> <filepath>",
 		Short: "Create an encrypted password vault",
 		Args:  cobra.ExactArgs(2),
@@ -29,6 +30,8 @@ func (a *application) newCreateVaultCommand() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&input.gpgRecipient, "gpg", "", "GPG recipient to encrypt the vault for")
+	return cmd
 }
 
 func (a *application) createVault(input *createVaultInput) error {
@@ -38,10 +41,10 @@ func (a *application) createVault(input *createVaultInput) error {
 	if err := a.config.ValidateVault(input.name, input.path); err != nil {
 		return err
 	}
-	if err := vault.Create(input.path); err != nil {
+	if err := vault.Create(input.path, input.gpgRecipient); err != nil {
 		return err
 	}
-	if err := a.config.RegisterVault(input.name, input.path); err != nil {
+	if err := a.config.RegisterVault(input.name, input.path, input.gpgRecipient); err != nil {
 		if removeErr := os.Remove(input.path); removeErr != nil {
 			return fmt.Errorf("register vault: %w (cleanup failed: %v)", err, removeErr)
 		}

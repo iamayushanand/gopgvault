@@ -16,6 +16,9 @@ const (
 	commandCreateVault   = "create-vault"
 	commandAddKey        = "add-key"
 	commandGetKey        = "get-key"
+	commandListKeys      = "list-keys"
+	commandImportSecrets = "import-secrets"
+	commandCopySecrets   = "copy-secrets"
 	DefaultVaultName     = "default"
 	vaultDirectoryName   = ".gopass"
 	vaultFileExtension   = ".gopass"
@@ -27,6 +30,8 @@ var (
 	ErrMissingArguments     = errors.New("operation is missing arguments")
 	ErrConfigNotInitialized = errors.New("config is not initialized")
 	ErrVaultNotFound        = errors.New("vault not found")
+	ErrNoMatchingKeys       = errors.New("no matching keys")
+	ErrSameVault            = errors.New("source and destination vaults must differ")
 )
 
 type application struct {
@@ -61,6 +66,9 @@ func NewRootCommand(args []string) *cobra.Command {
 		app.newCreateVaultCommand(),
 		app.newAddKeyCommand(),
 		app.newGetKeyCommand(),
+		app.newListKeysCommand(),
+		app.newImportSecretsCommand(),
+		app.newCopySecretsCommand(),
 	)
 	return root
 }
@@ -85,13 +93,13 @@ func (a *application) boot() error {
 	}
 	defaultPath := filepath.Join(home, vaultDirectoryName, defaultVaultFilename)
 	created := false
-	if err := vault.Create(defaultPath); err == nil {
+	if err := vault.Create(defaultPath, ""); err == nil {
 		created = true
 	} else if !errors.Is(err, vault.ErrFileExists) {
 		return err
 	}
 
-	if err := loaded.RegisterVault(DefaultVaultName, defaultPath); err != nil {
+	if err := loaded.RegisterVault(DefaultVaultName, defaultPath, ""); err != nil {
 		if created {
 			_ = os.Remove(defaultPath)
 		}
@@ -105,9 +113,9 @@ func (a *application) getVault(name string) (*vault.Vault, error) {
 	if a.config == nil {
 		return nil, ErrConfigNotInitialized
 	}
-	path, found := a.config.FindVault(name)
+	entry, found := a.config.FindVault(name)
 	if !found {
 		return nil, fmt.Errorf("%w: %q", ErrVaultNotFound, name)
 	}
-	return vault.New(path), nil
+	return vault.New(entry.Path, entry.GPGRecipient), nil
 }
