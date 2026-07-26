@@ -72,6 +72,7 @@ func (a *application) getKey(input *getKeyInput) error {
 		if err != nil {
 			return err
 		}
+		defer vault.ClearEntries(matches)
 		return displayEntries(matches)
 	}
 	secret, err := selected.GetKey(input.key)
