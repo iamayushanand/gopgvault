@@ -11,7 +11,7 @@ import (
 	"github.com/iamayushanand/gopgvault/config"
 )
 
-const configFilename = ".gopassrc"
+const configFilename = ".gopgvaultrc"
 
 func TestRootCommandRejectsInvalidInputBeforeBoot(t *testing.T) {
 	tests := []struct {
@@ -116,6 +116,38 @@ func TestBootRegistersExistingDefaultVaultWithoutOverwriting(t *testing.T) {
 	}
 }
 
+func TestBootUsesOnlyGoPGVaultStorageNames(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	installFakeGPG(t)
+
+	oldConfigPath := filepath.Join(home, ".go"+"passrc")
+	oldVaultPath := filepath.Join(home, ".go"+"pass", "default."+"go"+"pass")
+	if err := os.MkdirAll(filepath.Dir(oldVaultPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldConfigPath, []byte("legacy-config"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(oldVaultPath, []byte("legacy-vault"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	app := &application{}
+	if err := app.boot(); err != nil {
+		t.Fatalf("boot() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, configFilename)); err != nil {
+		t.Fatalf("new config was not created: %v", err)
+	}
+	newVaultPath := filepath.Join(home, vaultDirectoryName, defaultVaultFilename)
+	if _, err := os.Stat(newVaultPath); err != nil {
+		t.Fatalf("new default vault was not created: %v", err)
+	}
+	assertFileContent(t, oldConfigPath, "legacy-config")
+	assertFileContent(t, oldVaultPath, "legacy-vault")
+}
+
 func TestBootDoesNotRemoveExistingVaultOnRegistrationFailure(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -165,8 +197,8 @@ func TestApplicationRequiresBootAndResolvesConfiguredVault(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	defaultPath := filepath.Join(home, "default.gopass")
-	configContent := fmt.Sprintf("%s,%s\nwork,%s\n", DefaultVaultName, defaultPath, filepath.Join(home, "work.gopass"))
+	defaultPath := filepath.Join(home, "default.gopgvault")
+	configContent := fmt.Sprintf("%s,%s\nwork,%s\n", DefaultVaultName, defaultPath, filepath.Join(home, "work.gopgvault"))
 	if err := os.WriteFile(filepath.Join(home, configFilename), []byte(configContent), 0o600); err != nil {
 		t.Fatal(err)
 	}

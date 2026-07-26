@@ -20,8 +20,8 @@ const (
 	commandImportSecrets = "import-secrets"
 	commandCopySecrets   = "copy-secrets"
 	DefaultVaultName     = "default"
-	vaultDirectoryName   = ".gopass"
-	vaultFileExtension   = ".gopass"
+	vaultDirectoryName   = ".gopgvault"
+	vaultFileExtension   = ".gopgvault"
 	defaultVaultFilename = DefaultVaultName + vaultFileExtension
 	vaultFlagName        = "vault"
 )

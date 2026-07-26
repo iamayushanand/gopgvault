@@ -23,7 +23,7 @@ func TestVaultWipe(t *testing.T) {
 }
 
 func TestCreateRefusesExistingFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "existing.gopass")
+	path := filepath.Join(t.TempDir(), "existing.gopgvault")
 	if err := os.WriteFile(path, []byte("do not replace"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestCreateRefusesExistingFile(t *testing.T) {
 func TestVaultBulkWorkflowAndAtomicFailure(t *testing.T) {
 	installFakeVaultGPG(t)
 	directory := t.TempDir()
-	path := filepath.Join(directory, "vault.gopass")
+	path := filepath.Join(directory, "vault.gopgvault")
 	logPath := filepath.Join(directory, "gpg.log")
 	t.Setenv("GPG_ARGS_LOG", logPath)
 
@@ -93,7 +93,7 @@ func TestVaultBulkWorkflowAndAtomicFailure(t *testing.T) {
 
 func TestCreateWithEntriesRejectsDuplicates(t *testing.T) {
 	installFakeVaultGPG(t)
-	path := filepath.Join(t.TempDir(), "duplicate.gopass")
+	path := filepath.Join(t.TempDir(), "duplicate.gopgvault")
 	err := CreateWithEntries(path, "", []Entry{
 		{Key: "duplicate", Secret: []byte("first")},
 		{Key: "duplicate", Secret: []byte("last")},
@@ -108,7 +108,7 @@ func TestCreateWithEntriesRejectsDuplicates(t *testing.T) {
 
 func TestSecretBufferOwnership(t *testing.T) {
 	installFakeVaultGPG(t)
-	path := filepath.Join(t.TempDir(), "ownership.gopass")
+	path := filepath.Join(t.TempDir(), "ownership.gopgvault")
 	input := []byte("caller-owned")
 	if err := CreateWithEntries(path, "", []Entry{{Key: "key", Secret: input}}); err != nil {
 		t.Fatalf("CreateWithEntries() error = %v", err)
@@ -171,7 +171,7 @@ func TestReplaceSecretWipesOldValueAndClonesInput(t *testing.T) {
 
 func TestCSVSecretRoundTrip(t *testing.T) {
 	installFakeVaultGPG(t)
-	path := filepath.Join(t.TempDir(), "special.gopass")
+	path := filepath.Join(t.TempDir(), "special.gopgvault")
 	expected := []Entry{
 		{Key: `key,with"quotes`, Secret: []byte("comma, quote\" and\r\nmultiple\nlines")},
 	}
@@ -193,7 +193,7 @@ func TestCSVSecretRoundTrip(t *testing.T) {
 
 func TestUnlockWipesPartialEntriesAfterParseError(t *testing.T) {
 	installFakeVaultGPG(t)
-	path := filepath.Join(t.TempDir(), "malformed.gopass")
+	path := filepath.Join(t.TempDir(), "malformed.gopgvault")
 	if err := os.WriteFile(path, []byte("valid,secret\ninvalid\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 	if err != nil {
 		t.Skip("gpg is not installed")
 	}
-	home, err := os.MkdirTemp("/tmp", "gopass-vault-test-")
+	home, err := os.MkdirTemp("/tmp", "gopgvault-vault-test-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +223,7 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 	t.Setenv("GNUPGHOME", gnupgHome)
 
 	generateTestKey(t, gpg)
-	path := filepath.Join(home, "test.gopass")
+	path := filepath.Join(home, "test.gopgvault")
 	if err := Create(path, ""); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -243,7 +243,7 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 		t.Fatalf("missing GetKey() error = %v", err)
 	}
 
-	malformedPath := filepath.Join(home, "malformed.gopass")
+	malformedPath := filepath.Join(home, "malformed.gopgvault")
 	if err := encrypt(malformedPath, []byte("only-one-column\n"), "", false); err != nil {
 		t.Fatalf("encrypt malformed vault: %v", err)
 	}
@@ -260,7 +260,7 @@ func generateTestKey(t *testing.T, gpg string) {
 		"--quiet",
 		"--passphrase", "",
 		"--quick-generate-key",
-		"GoPass Test <gopass-test@example.invalid>",
+		"GoPGVault Test <gopgvault-test@example.invalid>",
 		"default",
 		"default",
 		"never",
