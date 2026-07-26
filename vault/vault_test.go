@@ -9,7 +9,7 @@ import (
 )
 
 func TestVaultWipe(t *testing.T) {
-	subject := &Vault{entries: []Entry{{key: "key", secret: "secret"}}}
+	subject := &Vault{entries: []Entry{{Key: "key", Secret: "secret"}}}
 	subject.wipe()
 	if subject.entries != nil {
 		t.Fatalf("wipe() left entries = %#v", subject.entries)
@@ -21,7 +21,7 @@ func TestCreateRefusesExistingFile(t *testing.T) {
 	if err := os.WriteFile(path, []byte("do not replace"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := Create(path); !errors.Is(err, ErrFileExists) {
+	if err := Create(path, ""); !errors.Is(err, ErrFileExists) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	content, err := os.ReadFile(path)
@@ -51,18 +51,18 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 
 	generateTestKey(t, gpg)
 	path := filepath.Join(home, "test.gopass")
-	if err := Create(path); err != nil {
+	if err := Create(path, ""); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	selected := New(path)
-	if err := selected.AddKey("service/account", "secret"); err != nil {
+	selected := New(path, "")
+	if err := selected.AddKey("service/account", "secret", false); err != nil {
 		t.Fatalf("AddKey() error = %v", err)
 	}
 	secret, err := selected.GetKey("service/account")
 	if err != nil || secret != "secret" {
 		t.Fatalf("GetKey() = %q, %v", secret, err)
 	}
-	if err := selected.AddKey("service/account", "duplicate"); !errors.Is(err, ErrKeyExists) {
+	if err := selected.AddKey("service/account", "duplicate", false); !errors.Is(err, ErrKeyExists) {
 		t.Fatalf("duplicate AddKey() error = %v", err)
 	}
 	if _, err := selected.GetKey("missing"); !errors.Is(err, ErrKeyNotFound) {
@@ -70,10 +70,10 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 	}
 
 	malformedPath := filepath.Join(home, "malformed.gopass")
-	if err := encrypt(malformedPath, []byte("only-one-column\n"), false); err != nil {
+	if err := encrypt(malformedPath, []byte("only-one-column\n"), "", false); err != nil {
 		t.Fatalf("encrypt malformed vault: %v", err)
 	}
-	if err := New(malformedPath).unlock(); !errors.Is(err, ErrInvalidEntry) {
+	if err := New(malformedPath, "").unlock(); !errors.Is(err, ErrInvalidEntry) {
 		t.Fatalf("malformed unlock() error = %v", err)
 	}
 }

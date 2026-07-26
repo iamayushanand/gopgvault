@@ -85,7 +85,7 @@ func (a *application) boot() error {
 	}
 	defaultPath := filepath.Join(home, vaultDirectoryName, defaultVaultFilename)
 	created := false
-	if err := vault.Create(defaultPath); err == nil {
+	if err := vault.Create(defaultPath, ""); err == nil {
 		created = true
 	} else if !errors.Is(err, vault.ErrFileExists) {
 		return err
@@ -109,5 +109,5 @@ func (a *application) getVault(name string) (*vault.Vault, error) {
 	if !found {
 		return nil, fmt.Errorf("%w: %q", ErrVaultNotFound, name)
 	}
-	return vault.New(entry.Path), nil
+	return vault.New(entry.Path, entry.GPGRecipient), nil
 }

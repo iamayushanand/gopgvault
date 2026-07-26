@@ -9,8 +9,9 @@ import (
 )
 
 type addKeyInput struct {
-	key   string
-	vault string
+	key       string
+	vault     string
+	overwrite bool
 }
 
 func (a *application) newAddKeyCommand() *cobra.Command {
@@ -29,6 +30,7 @@ func (a *application) newAddKeyCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&input.vault, vaultFlagName, DefaultVaultName, "Vault to use")
+	cmd.Flags().BoolVar(&input.overwrite, "overwrite", false, "Overwrite an existing key")
 	return cmd
 }
 
@@ -41,7 +43,7 @@ func (a *application) addKey(input *addKeyInput) error {
 	if err != nil {
 		return err
 	}
-	return selected.AddKey(input.key, secret)
+	return selected.AddKey(input.key, secret, input.overwrite)
 }
 
 func readSecret() (string, error) {
