@@ -13,7 +13,7 @@ func TestConfigLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load() error = %v", err)
 	}
-	if err := loaded.RegisterVault("work", "/vaults/work.gopass", "ABC123"); err != nil {
+	if err := loaded.RegisterVault("work", "/vaults/work.gopgvault", "ABC123"); err != nil {
 		t.Fatalf("RegisterVault() error = %v", err)
 	}
 
@@ -22,20 +22,20 @@ func TestConfigLifecycle(t *testing.T) {
 		t.Fatalf("load() error = %v", err)
 	}
 	if entry, found := reloaded.FindVault("work"); !found ||
-		entry.Path != "/vaults/work.gopass" || entry.GPGRecipient != "ABC123" {
+		entry.Path != "/vaults/work.gopgvault" || entry.GPGRecipient != "ABC123" {
 		t.Fatalf("FindVault() = %#v, %v", entry, found)
 	}
-	if err := reloaded.RegisterVault("work", "/other.gopass", ""); !errors.Is(err, ErrVaultExists) {
+	if err := reloaded.RegisterVault("work", "/other.gopgvault", ""); !errors.Is(err, ErrVaultExists) {
 		t.Fatalf("duplicate name error = %v", err)
 	}
-	if err := reloaded.RegisterVault("other", "/vaults/work.gopass", ""); !errors.Is(err, ErrVaultPathExists) {
+	if err := reloaded.RegisterVault("other", "/vaults/work.gopgvault", ""); !errors.Is(err, ErrVaultPathExists) {
 		t.Fatalf("duplicate path error = %v", err)
 	}
 }
 
 func TestConfigLoadsLegacyEntry(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), filename)
-	if err := os.WriteFile(configPath, []byte("legacy,/vaults/legacy.gopass\n"), filePermissions); err != nil {
+	if err := os.WriteFile(configPath, []byte("legacy,/vaults/legacy.gopgvault\n"), filePermissions); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := load(configPath)
@@ -43,7 +43,7 @@ func TestConfigLoadsLegacyEntry(t *testing.T) {
 		t.Fatalf("load() error = %v", err)
 	}
 	entry, found := loaded.FindVault("legacy")
-	if !found || entry.Path != "/vaults/legacy.gopass" || entry.GPGRecipient != "" {
+	if !found || entry.Path != "/vaults/legacy.gopgvault" || entry.GPGRecipient != "" {
 		t.Fatalf("FindVault() = %#v, %v", entry, found)
 	}
 }

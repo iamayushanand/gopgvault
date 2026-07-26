@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/iamayushanand/gopass/vault"
+	"github.com/iamayushanand/gopgvault/vault"
 )
 
 func TestGrepEntriesMatchesKeysOnly(t *testing.T) {
@@ -65,9 +65,9 @@ func TestListImportAndCopyCommands(t *testing.T) {
 	gpgLog := filepath.Join(home, "gpg-args.log")
 	t.Setenv("GPG_ARGS_LOG", gpgLog)
 
-	defaultPath := filepath.Join(home, "default.gopass")
-	workPath := filepath.Join(home, "work.gopass")
-	copyPath := filepath.Join(home, "copy.gopass")
+	defaultPath := filepath.Join(home, "default.gopgvault")
+	workPath := filepath.Join(home, "work.gopgvault")
+	copyPath := filepath.Join(home, "copy.gopgvault")
 	if err := os.WriteFile(defaultPath, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestImportPromptsForNewVault(t *testing.T) {
 	t.Setenv("HOME", home)
 	installFakeGPG(t)
 
-	defaultPath := filepath.Join(home, "default.gopass")
+	defaultPath := filepath.Join(home, "default.gopgvault")
 	if err := os.WriteFile(defaultPath, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestImportPromptsForNewVault(t *testing.T) {
 	if err := os.WriteFile(importPath, []byte("key,secret\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	newPath := filepath.Join(home, "new.gopass")
+	newPath := filepath.Join(home, "new.gopgvault")
 
 	root := NewRootCommand([]string{commandImportSecrets, importPath})
 	root.SetIn(strings.NewReader("new-vault\n" + newPath + "\n"))
@@ -190,7 +190,7 @@ func TestCreateVaultPersistsGPGRecipient(t *testing.T) {
 	logPath := filepath.Join(home, "gpg.log")
 	t.Setenv("GPG_ARGS_LOG", logPath)
 
-	path := filepath.Join(home, "custom.gopass")
+	path := filepath.Join(home, "custom.gopgvault")
 	root := NewRootCommand([]string{commandCreateVault, "custom", path, "--gpg", "CUSTOM-KEY"})
 	root.SetOut(new(bytes.Buffer))
 	if err := root.Execute(); err != nil {

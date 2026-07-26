@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	filename             = ".gopassrc"
+	filename             = ".gopgvaultrc"
 	directoryPermissions = 0o700
 	filePermissions      = 0o600
 )

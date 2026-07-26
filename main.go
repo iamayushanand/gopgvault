@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	command "github.com/iamayushanand/gopass/cmd"
+	command "github.com/iamayushanand/gopgvault/cmd"
 )
 
 func main() {

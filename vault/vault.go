@@ -148,7 +148,7 @@ func writeCSVField(writer *bytes.Buffer, field []byte) {
 
 func encrypt(path string, content []byte, gpgRecipient string, overwrite bool) error {
 	directory := filepath.Dir(path)
-	file, err := os.CreateTemp(directory, ".gopass-encrypted-*")
+	file, err := os.CreateTemp(directory, ".gopgvault-encrypted-*")
 	if err != nil {
 		return err
 	}
