@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/iamayushanand/gopass/config"
+	"github.com/iamayushanand/gopgvault/config"
 )
 
 const configFilename = ".gopassrc"

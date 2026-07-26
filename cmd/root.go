@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/iamayushanand/gopass/config"
-	"github.com/iamayushanand/gopass/vault"
+	"github.com/iamayushanand/gopgvault/config"
+	"github.com/iamayushanand/gopgvault/vault"
 	"github.com/spf13/cobra"
 )
 
@@ -41,7 +41,7 @@ type application struct {
 func NewRootCommand(args []string) *cobra.Command {
 	app := &application{}
 	root := &cobra.Command{
-		Use:           "gopass",
+		Use:           "gopgvault",
 		Short:         "A GPG-backed command-line password manager",
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -56,7 +56,7 @@ func NewRootCommand(args []string) *cobra.Command {
 				return fmt.Errorf("flags must follow a command")
 			}
 			if err := app.boot(); err != nil {
-				return fmt.Errorf("initialize gopass: %w", err)
+				return fmt.Errorf("initialize gopgvault: %w", err)
 			}
 			return nil
 		},

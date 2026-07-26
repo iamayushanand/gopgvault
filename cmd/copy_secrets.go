@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/iamayushanand/gopass/vault"
+	"github.com/iamayushanand/gopgvault/vault"
 	"github.com/spf13/cobra"
 )
 

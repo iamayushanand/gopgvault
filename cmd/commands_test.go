@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/iamayushanand/gopass/vault"
+	"github.com/iamayushanand/gopgvault/vault"
 )
 
 func TestGrepEntriesMatchesKeysOnly(t *testing.T) {

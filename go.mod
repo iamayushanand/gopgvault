@@ -1,4 +1,4 @@
-module github.com/iamayushanand/gopass
+module github.com/iamayushanand/gopgvault
 
 go 1.25.0
 
