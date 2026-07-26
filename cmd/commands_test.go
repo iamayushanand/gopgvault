@@ -14,27 +14,29 @@ import (
 
 func TestGrepEntriesMatchesKeysOnly(t *testing.T) {
 	entries := []vault.Entry{
-		{Key: "service/alpha", Secret: "hidden-match"},
-		{Key: "service/beta", Secret: "alpha only in secret"},
+		{Key: "service/alpha", Secret: []byte("hidden-match")},
+		{Key: "service/beta", Secret: []byte("alpha only in secret")},
 	}
-	matches, err := grepEntries(`^service/a`, entries)
+	matches, err := grepEntryIndexes(`^service/a`, entries)
 	if err != nil {
 		t.Fatalf("grepEntries() error = %v", err)
 	}
-	if len(matches) != 1 || matches[0].Key != "service/alpha" {
+	if len(matches) != 1 || matches[0] != 0 {
 		t.Fatalf("grepEntries() = %#v", matches)
 	}
 
-	if _, err := grepEntries("hidden-match", entries); !errors.Is(err, ErrNoMatchingKeys) {
+	if _, err := grepEntryIndexes("hidden-match", entries); !errors.Is(err, ErrNoMatchingKeys) {
 		t.Fatalf("secret-only grep error = %v", err)
 	}
 }
 
 func TestNormalizeEntriesDuplicateBehavior(t *testing.T) {
+	first := []byte("first")
+	last := []byte("last")
 	entries := []vault.Entry{
-		{Key: "duplicate", Secret: "first"},
-		{Key: "other", Secret: "value"},
-		{Key: "duplicate", Secret: "last"},
+		{Key: "duplicate", Secret: first},
+		{Key: "other", Secret: []byte("value")},
+		{Key: "duplicate", Secret: last},
 	}
 	if _, err := normalizeEntries(entries, false); !errors.Is(err, vault.ErrConflictingKeys) {
 		t.Fatalf("normalizeEntries() error = %v", err)
@@ -43,9 +45,16 @@ func TestNormalizeEntriesDuplicateBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatalf("normalizeEntries(overwrite) error = %v", err)
 	}
-	if len(normalized) != 2 || normalized[0].Key != "duplicate" || normalized[0].Secret != "last" {
+	if len(normalized) != 2 || normalized[0].Key != "duplicate" || string(normalized[0].Secret) != "last" {
 		t.Fatalf("normalizeEntries(overwrite) = %#v", normalized)
 	}
+	if !bytes.Equal(first, make([]byte, len(first))) {
+		t.Fatalf("normalizeEntries(overwrite) left replaced bytes = %q", first)
+	}
+	if &normalized[0].Secret[0] != &last[0] {
+		t.Fatal("normalizeEntries(overwrite) copied instead of transferring ownership")
+	}
+	vault.ClearEntries(entries)
 }
 
 func TestListImportAndCopyCommands(t *testing.T) {

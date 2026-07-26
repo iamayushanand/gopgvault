@@ -52,7 +52,6 @@ func (a *application) importSecrets(input *importSecretsInput, promptInput io.Re
 	if err != nil {
 		return err
 	}
-	defer vault.ClearEntries(entries)
 
 	if input.vault != "" {
 		selected, err := a.getVault(input.vault)
@@ -103,27 +102,27 @@ func readCSVEntries(path string) ([]vault.Entry, error) {
 			vault.ClearEntries(entries)
 			return nil, vault.ErrInvalidEntry
 		}
-		entries = append(entries, vault.Entry{Key: record[0], Secret: record[1]})
+		entries = append(entries, vault.Entry{
+			Key:    record[0],
+			Secret: []byte(record[1]),
+		})
 	}
 }
 
 func normalizeEntries(entries []vault.Entry, overwrite bool) ([]vault.Entry, error) {
 	indices := make(map[string]int, len(entries))
-	conflicts := make(map[string]struct{})
-	normalized := make([]vault.Entry, 0, len(entries))
-	for _, entry := range entries {
-		if index, found := indices[entry.Key]; found {
-			if !overwrite {
+	if !overwrite {
+		conflicts := make(map[string]struct{})
+		for i, entry := range entries {
+			if _, found := indices[entry.Key]; found {
 				conflicts[entry.Key] = struct{}{}
-				continue
+			} else {
+				indices[entry.Key] = i
 			}
-			normalized[index].Secret = entry.Secret
-			continue
 		}
-		indices[entry.Key] = len(normalized)
-		normalized = append(normalized, entry)
-	}
-	if len(conflicts) > 0 {
+		if len(conflicts) == 0 {
+			return entries, nil
+		}
 		keys := make([]string, 0, len(conflicts))
 		for key := range conflicts {
 			keys = append(keys, key)
@@ -131,7 +130,24 @@ func normalizeEntries(entries []vault.Entry, overwrite bool) ([]vault.Entry, err
 		sort.Strings(keys)
 		return nil, fmt.Errorf("%w: %q", vault.ErrConflictingKeys, keys)
 	}
-	return normalized, nil
+
+	next := 0
+	for i := range entries {
+		entry := &entries[i]
+		if index, found := indices[entry.Key]; found {
+			clear(entries[index].Secret)
+			entries[index].Secret = entry.Secret
+			*entry = vault.Entry{}
+			continue
+		}
+		indices[entry.Key] = next
+		if next != i {
+			entries[next] = *entry
+			*entry = vault.Entry{}
+		}
+		next++
+	}
+	return entries[:next], nil
 }
 
 func promptForVault(input io.Reader, output io.Writer) (string, string, error) {
