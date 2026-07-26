@@ -52,6 +52,7 @@ func readSecret() ([]byte, error) {
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
 	if err != nil {
+		clear(secret)
 		return nil, err
 	}
 	return secret, nil

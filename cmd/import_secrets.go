@@ -103,7 +103,9 @@ func readCSVEntries(path string) ([]vault.Entry, error) {
 			return nil, vault.ErrInvalidEntry
 		}
 		entries = append(entries, vault.Entry{
-			Key:    record[0],
+			// Clone the key so it does not retain the CSV record backing string,
+			// which also contained the immutable parse-time secret.
+			Key:    strings.Clone(record[0]),
 			Secret: []byte(record[1]),
 		})
 	}

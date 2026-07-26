@@ -191,6 +191,21 @@ func TestCSVSecretRoundTrip(t *testing.T) {
 	}
 }
 
+func TestUnlockWipesPartialEntriesAfterParseError(t *testing.T) {
+	installFakeVaultGPG(t)
+	path := filepath.Join(t.TempDir(), "malformed.gopass")
+	if err := os.WriteFile(path, []byte("valid,secret\ninvalid\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	selected := New(path, "")
+	if err := selected.unlock(); err == nil {
+		t.Fatal("unlock() error = nil")
+	}
+	if selected.entries != nil {
+		t.Fatalf("unlock() retained partial entries = %#v", selected.entries)
+	}
+}
+
 func TestEncryptedVaultWorkflow(t *testing.T) {
 	gpg, err := exec.LookPath(gpgExecutable)
 	if err != nil {

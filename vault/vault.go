@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const (
@@ -67,7 +68,14 @@ func CreateWithEntries(path, gpgRecipient string, entries []Entry) error {
 	return encrypt(path, content, gpgRecipient, false)
 }
 
-func (v *Vault) unlock() error {
+func (v *Vault) unlock() (returnErr error) {
+	v.wipe()
+	defer func() {
+		if returnErr != nil {
+			v.wipe()
+		}
+	}()
+
 	command := exec.Command(gpgExecutable, "--quiet", "--decrypt", v.path)
 	command.Stdin = os.Stdin
 	command.Env = os.Environ()
@@ -75,12 +83,11 @@ func (v *Vault) unlock() error {
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	output, err := command.Output()
+	defer clear(output)
 	if err != nil {
 		return fmt.Errorf("%w: %w: %s", ErrDecryption, err, stderr.String())
 	}
-	defer clear(output)
 
-	v.entries = nil
 	reader := csv.NewReader(bytes.NewReader(output))
 	for {
 		record, err := reader.Read()
@@ -94,9 +101,11 @@ func (v *Vault) unlock() error {
 			return ErrInvalidEntry
 		}
 		// encoding/csv exposes fields as strings, so decoding necessarily creates
-		// a short-lived immutable copy. Keep only a mutable owned copy afterward.
+		// a short-lived immutable copy. Clone the key so it cannot retain the
+		// record backing string that also held the secret, and keep only a
+		// mutable owned copy of the secret afterward.
 		v.entries = append(v.entries, Entry{
-			Key:    record[0],
+			Key:    strings.Clone(record[0]),
 			Secret: []byte(record[1]),
 		})
 	}
@@ -164,6 +173,7 @@ func encrypt(path string, content []byte, gpgRecipient string, overwrite bool) e
 	command := exec.Command(gpgExecutable, args...)
 	command.Stdin = bytes.NewReader(content)
 	output, err := command.CombinedOutput()
+	defer clear(output)
 	if err != nil {
 		return fmt.Errorf("%w: %w: %s", ErrEncryption, err, output)
 	}
