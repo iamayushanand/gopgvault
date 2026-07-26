@@ -213,6 +213,86 @@ func TestCreateVaultPersistsGPGRecipient(t *testing.T) {
 	}
 }
 
+func TestDisplaySecretHardensPager(t *testing.T) {
+	installFakeGPG(t)
+	bin := filepath.SplitList(os.Getenv("PATH"))[0]
+	pagerLog := filepath.Join(t.TempDir(), "pager.log")
+	contentLog := filepath.Join(t.TempDir(), "content.log")
+	t.Setenv("PAGER_TEST_LOG", pagerLog)
+	t.Setenv("PAGER_CONTENT_LOG", contentLog)
+	t.Setenv("TERM", "security-test-terminal")
+	t.Setenv("LESSSECURE", "0")
+	t.Setenv("LESSHISTFILE", filepath.Join(t.TempDir(), "unsafe-history"))
+	for _, name := range []string{
+		"LESS",
+		"LESSOPEN",
+		"LESSCLOSE",
+		"LESSKEY",
+		"LESSKEYIN",
+		"LESSANSIENDCHARS",
+		"LESSANSIOSCALLOW",
+		"LESSANSIOSCCHARS",
+	} {
+		t.Setenv(name, "unsafe")
+	}
+	script := `#!/bin/sh
+{
+  printf 'args=%s\n' "$#"
+  printf 'secure=%s\n' "$LESSSECURE"
+  printf 'history=%s\n' "$LESSHISTFILE"
+  printf 'less=%s\n' "${LESS+x}"
+  printf 'open=%s\n' "${LESSOPEN+x}"
+  printf 'close=%s\n' "${LESSCLOSE+x}"
+  printf 'key=%s\n' "${LESSKEY+x}"
+  printf 'keyin=%s\n' "${LESSKEYIN+x}"
+  printf 'ansiend=%s\n' "${LESSANSIENDCHARS+x}"
+  printf 'oscallow=%s\n' "${LESSANSIOSCALLOW+x}"
+  printf 'oscchars=%s\n' "${LESSANSIOSCCHARS+x}"
+  printf 'term=%s\n' "$TERM"
+} > "$PAGER_TEST_LOG"
+cat > "$PAGER_CONTENT_LOG"
+`
+	if err := os.WriteFile(filepath.Join(bin, pagerExecutable), []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	secret := []byte("sensitive-value")
+	if err := displaySecret("service/account", secret); err != nil {
+		t.Fatalf("displaySecret() error = %v", err)
+	}
+	if string(secret) != "sensitive-value" {
+		t.Fatalf("displaySecret() modified borrowed secret = %q", secret)
+	}
+	logContent, err := os.ReadFile(pagerLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedLog := "" +
+		"args=0\n" +
+		"secure=1\n" +
+		"history=-\n" +
+		"less=\n" +
+		"open=\n" +
+		"close=\n" +
+		"key=\n" +
+		"keyin=\n" +
+		"ansiend=\n" +
+		"oscallow=\n" +
+		"oscchars=\n" +
+		"term=security-test-terminal\n"
+	if string(logContent) != expectedLog {
+		t.Fatalf("pager environment = %q, want %q", logContent, expectedLog)
+	}
+	content, err := os.ReadFile(contentLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "Key: service/account\nSecret: sensitive-value\n" {
+		t.Fatalf("pager content = %q", content)
+	}
+	clear(secret)
+}
+
 func installFakePager(t *testing.T) {
 	t.Helper()
 	bin := filepath.SplitList(os.Getenv("PATH"))

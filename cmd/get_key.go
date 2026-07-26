@@ -18,6 +18,19 @@ const (
 	grepExecutable  = "grep"
 )
 
+var unsafePagerEnvironment = map[string]struct{}{
+	"LESS":             {},
+	"LESSOPEN":         {},
+	"LESSCLOSE":        {},
+	"LESSKEY":          {},
+	"LESSKEYIN":        {},
+	"LESSSECURE":       {},
+	"LESSHISTFILE":     {},
+	"LESSANSIENDCHARS": {},
+	"LESSANSIOSCALLOW": {},
+	"LESSANSIOSCCHARS": {},
+}
+
 type getKeyInput struct {
 	key   string
 	grep  string
@@ -148,9 +161,22 @@ func displayEntries(entries []vault.Entry, indexes []int) error {
 	content := contentBuffer.Bytes()
 	defer clear(content)
 
-	command := exec.Command(pagerExecutable, "-R")
+	command := exec.Command(pagerExecutable)
 	command.Stdin = bytes.NewReader(content)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
+	command.Env = securePagerEnvironment()
 	return command.Run()
+}
+
+func securePagerEnvironment() []string {
+	environment := make([]string, 0, len(os.Environ())+2)
+	for _, variable := range os.Environ() {
+		name, _, _ := strings.Cut(variable, "=")
+		if _, unsafe := unsafePagerEnvironment[name]; unsafe {
+			continue
+		}
+		environment = append(environment, variable)
+	}
+	return append(environment, "LESSSECURE=1", "LESSHISTFILE=-")
 }
