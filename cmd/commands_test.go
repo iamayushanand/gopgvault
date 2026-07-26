@@ -229,6 +229,7 @@ func TestDisplaySecretHardensPager(t *testing.T) {
 		"LESSCLOSE",
 		"LESSKEY",
 		"LESSKEYIN",
+		"LESSSECURE_ALLOW",
 		"LESSANSIENDCHARS",
 		"LESSANSIOSCALLOW",
 		"LESSANSIOSCCHARS",
@@ -245,6 +246,7 @@ func TestDisplaySecretHardensPager(t *testing.T) {
   printf 'close=%s\n' "${LESSCLOSE+x}"
   printf 'key=%s\n' "${LESSKEY+x}"
   printf 'keyin=%s\n' "${LESSKEYIN+x}"
+  printf 'secure_allow=%s\n' "${LESSSECURE_ALLOW+x}"
   printf 'ansiend=%s\n' "${LESSANSIENDCHARS+x}"
   printf 'oscallow=%s\n' "${LESSANSIOSCALLOW+x}"
   printf 'oscchars=%s\n' "${LESSANSIOSCCHARS+x}"
@@ -276,6 +278,7 @@ cat > "$PAGER_CONTENT_LOG"
 		"close=\n" +
 		"key=\n" +
 		"keyin=\n" +
+		"secure_allow=\n" +
 		"ansiend=\n" +
 		"oscallow=\n" +
 		"oscchars=\n" +

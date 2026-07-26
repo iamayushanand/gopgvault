@@ -25,6 +25,7 @@ var unsafePagerEnvironment = map[string]struct{}{
 	"LESSKEY":          {},
 	"LESSKEYIN":        {},
 	"LESSSECURE":       {},
+	"LESSSECURE_ALLOW": {},
 	"LESSHISTFILE":     {},
 	"LESSANSIENDCHARS": {},
 	"LESSANSIOSCALLOW": {},
