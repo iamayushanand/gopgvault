@@ -26,6 +26,10 @@ func TestRootCommandRejectsInvalidInputBeforeBoot(t *testing.T) {
 		{name: "extra add key", args: []string{commandAddKey, "one", "two"}},
 		{name: "missing get key", args: []string{commandGetKey}},
 		{name: "missing create path", args: []string{commandCreateVault, "work"}},
+		{name: "extra list argument", args: []string{commandListKeys, "extra"}},
+		{name: "missing import file", args: []string{commandImportSecrets}},
+		{name: "missing copy destination", args: []string{commandCopySecrets, "source"}},
+		{name: "get key and grep", args: []string{commandGetKey, "key", "--grep", "pattern"}},
 	}
 
 	for _, test := range tests {
@@ -192,13 +196,25 @@ func installFakeGPG(t *testing.T) {
 	t.Helper()
 	bin := t.TempDir()
 	script := `#!/bin/sh
+if [ -n "$GPG_ARGS_LOG" ]; then
+  {
+    echo CALL
+    printf '%s\n' "$@"
+  } >> "$GPG_ARGS_LOG"
+fi
+last=""
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--output" ]; then
-    shift
-    output="$1"
-  fi
+  case "$1" in
+    --decrypt) mode="decrypt" ;;
+    --output) shift; output="$1" ;;
+  esac
+  last="$1"
   shift
 done
+if [ "$mode" = "decrypt" ]; then
+  cat "$last"
+  exit $?
+fi
 cat > "$output"
 `
 	path := filepath.Join(bin, "gpg")
