@@ -91,7 +91,7 @@ func (a *application) boot() error {
 		return err
 	}
 
-	if err := loaded.RegisterVault(DefaultVaultName, defaultPath); err != nil {
+	if err := loaded.RegisterVault(DefaultVaultName, defaultPath, ""); err != nil {
 		if created {
 			_ = os.Remove(defaultPath)
 		}
@@ -105,9 +105,9 @@ func (a *application) getVault(name string) (*vault.Vault, error) {
 	if a.config == nil {
 		return nil, ErrConfigNotInitialized
 	}
-	path, found := a.config.FindVault(name)
+	entry, found := a.config.FindVault(name)
 	if !found {
 		return nil, fmt.Errorf("%w: %q", ErrVaultNotFound, name)
 	}
-	return vault.New(path), nil
+	return vault.New(entry.Path), nil
 }

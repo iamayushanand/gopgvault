@@ -27,8 +27,9 @@ type Config struct {
 }
 
 type Entry struct {
-	name string
-	path string
+	Name         string
+	Path         string
+	GPGRecipient string
 }
 
 func Load() (*Config, error) {
@@ -84,35 +85,39 @@ func (c *Config) loadEntries() error {
 		if err != nil {
 			return err
 		}
-		if len(record) != 2 {
+		if len(record) < 2 || len(record) > 3 {
 			return ErrInvalidEntry
 		}
-		c.entries = append(c.entries, Entry{name: record[0], path: record[1]})
+		entry := Entry{Name: record[0], Path: record[1]}
+		if len(record) == 3 {
+			entry.GPGRecipient = record[2]
+		}
+		c.entries = append(c.entries, entry)
 	}
 }
 
-func (c *Config) FindVault(name string) (string, bool) {
+func (c *Config) FindVault(name string) (Entry, bool) {
 	for _, entry := range c.entries {
-		if entry.name == name {
-			return entry.path, true
+		if entry.Name == name {
+			return entry, true
 		}
 	}
-	return "", false
+	return Entry{}, false
 }
 
 func (c *Config) ValidateVault(name, path string) error {
 	for _, entry := range c.entries {
-		if entry.name == name {
+		if entry.Name == name {
 			return fmt.Errorf("%w: %q", ErrVaultExists, name)
 		}
-		if entry.path == path {
+		if entry.Path == path {
 			return fmt.Errorf("%w: %q", ErrVaultPathExists, path)
 		}
 	}
 	return nil
 }
 
-func (c *Config) RegisterVault(name, path string) error {
+func (c *Config) RegisterVault(name, path, gpgRecipient string) error {
 	if err := c.ValidateVault(name, path); err != nil {
 		return err
 	}
@@ -124,7 +129,7 @@ func (c *Config) RegisterVault(name, path string) error {
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
-	if err := writer.Write([]string{name, path}); err != nil {
+	if err := writer.Write([]string{name, path, gpgRecipient}); err != nil {
 		return err
 	}
 	writer.Flush()
@@ -132,6 +137,10 @@ func (c *Config) RegisterVault(name, path string) error {
 		return err
 	}
 
-	c.entries = append(c.entries, Entry{name: name, path: path})
+	c.entries = append(c.entries, Entry{
+		Name:         name,
+		Path:         path,
+		GPGRecipient: gpgRecipient,
+	})
 	return nil
 }

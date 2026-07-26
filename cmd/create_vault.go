@@ -41,7 +41,7 @@ func (a *application) createVault(input *createVaultInput) error {
 	if err := vault.Create(input.path); err != nil {
 		return err
 	}
-	if err := a.config.RegisterVault(input.name, input.path); err != nil {
+	if err := a.config.RegisterVault(input.name, input.path, ""); err != nil {
 		if removeErr := os.Remove(input.path); removeErr != nil {
 			return fmt.Errorf("register vault: %w (cleanup failed: %v)", err, removeErr)
 		}

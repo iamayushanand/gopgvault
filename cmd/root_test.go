@@ -102,9 +102,9 @@ func TestBootRegistersExistingDefaultVaultWithoutOverwriting(t *testing.T) {
 	if err := app.boot(); err != nil {
 		t.Fatalf("second boot() error = %v", err)
 	}
-	registeredPath, found := app.config.FindVault(DefaultVaultName)
-	if !found || registeredPath != vaultPath {
-		t.Fatalf("default vault = %q, %v", registeredPath, found)
+	registered, found := app.config.FindVault(DefaultVaultName)
+	if !found || registered.Path != vaultPath {
+		t.Fatalf("default vault = %#v, %v", registered, found)
 	}
 	content, err := os.ReadFile(vaultPath)
 	if err != nil || string(content) != string(original) {
