@@ -35,24 +35,25 @@ func (a *application) newAddKeyCommand() *cobra.Command {
 }
 
 func (a *application) addKey(input *addKeyInput) error {
-	secret, err := readSecret()
-	if err != nil {
-		return fmt.Errorf("read secret: %w", err)
-	}
 	selected, err := a.getVault(input.vault)
 	if err != nil {
 		return err
 	}
+	secret, err := readSecret()
+	if err != nil {
+		return fmt.Errorf("read secret: %w", err)
+	}
+	defer clear(secret)
 	return selected.AddKey(input.key, secret, input.overwrite)
 }
 
-func readSecret() (string, error) {
+func readSecret() ([]byte, error) {
 	fmt.Print("Enter secret: ")
 	secret, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
 	if err != nil {
-		return "", err
+		clear(secret)
+		return nil, err
 	}
-	defer clear(secret)
-	return string(secret), nil
+	return secret, nil
 }

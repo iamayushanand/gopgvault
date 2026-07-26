@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -10,8 +11,12 @@ import (
 )
 
 func TestVaultWipe(t *testing.T) {
-	subject := &Vault{entries: []Entry{{Key: "key", Secret: "secret"}}}
+	secret := []byte("secret")
+	subject := &Vault{entries: []Entry{{Key: "key", Secret: secret}}}
 	subject.wipe()
+	if string(secret) != "\x00\x00\x00\x00\x00\x00" {
+		t.Fatalf("wipe() left secret bytes = %q", secret)
+	}
 	if subject.entries != nil {
 		t.Fatalf("wipe() left entries = %#v", subject.entries)
 	}
@@ -41,7 +46,7 @@ func TestVaultBulkWorkflowAndAtomicFailure(t *testing.T) {
 	logPath := filepath.Join(directory, "gpg.log")
 	t.Setenv("GPG_ARGS_LOG", logPath)
 
-	if err := CreateWithEntries(path, "CUSTOM-KEY", []Entry{{Key: "existing", Secret: "old"}}); err != nil {
+	if err := CreateWithEntries(path, "CUSTOM-KEY", []Entry{{Key: "existing", Secret: []byte("old")}}); err != nil {
 		t.Fatalf("CreateWithEntries() error = %v", err)
 	}
 	selected := New(path, "CUSTOM-KEY")
@@ -50,8 +55,8 @@ func TestVaultBulkWorkflowAndAtomicFailure(t *testing.T) {
 	}
 
 	incoming := []Entry{
-		{Key: "existing", Secret: "replacement"},
-		{Key: "new", Secret: "value"},
+		{Key: "existing", Secret: []byte("replacement")},
+		{Key: "new", Secret: []byte("value")},
 	}
 	if err := selected.PutEntries(incoming, false); !errors.Is(err, ErrConflictingKeys) {
 		t.Fatalf("PutEntries() conflict error = %v", err)
@@ -63,16 +68,16 @@ func TestVaultBulkWorkflowAndAtomicFailure(t *testing.T) {
 	}
 	assertVaultFile(t, path, "existing,replacement\nnew,value\n")
 
-	if err := selected.AddKey("existing", "again", false); !errors.Is(err, ErrKeyExists) {
+	if err := selected.AddKey("existing", []byte("again"), false); !errors.Is(err, ErrKeyExists) {
 		t.Fatalf("AddKey() conflict error = %v", err)
 	}
-	if err := selected.AddKey("existing", "again", true); err != nil {
+	if err := selected.AddKey("existing", []byte("again"), true); err != nil {
 		t.Fatalf("AddKey(overwrite) error = %v", err)
 	}
 	assertVaultFile(t, path, "existing,again\nnew,value\n")
 
 	t.Setenv("FAIL_GPG_ENCRYPT", "1")
-	if err := selected.AddKey("another", "secret", false); !errors.Is(err, ErrEncryption) {
+	if err := selected.AddKey("another", []byte("secret"), false); !errors.Is(err, ErrEncryption) {
 		t.Fatalf("AddKey() encryption error = %v", err)
 	}
 	assertVaultFile(t, path, "existing,again\nnew,value\n")
@@ -90,14 +95,114 @@ func TestCreateWithEntriesRejectsDuplicates(t *testing.T) {
 	installFakeVaultGPG(t)
 	path := filepath.Join(t.TempDir(), "duplicate.gopass")
 	err := CreateWithEntries(path, "", []Entry{
-		{Key: "duplicate", Secret: "first"},
-		{Key: "duplicate", Secret: "last"},
+		{Key: "duplicate", Secret: []byte("first")},
+		{Key: "duplicate", Secret: []byte("last")},
 	})
 	if !errors.Is(err, ErrConflictingKeys) {
 		t.Fatalf("CreateWithEntries() error = %v", err)
 	}
 	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
 		t.Fatalf("duplicate create wrote file: %v", statErr)
+	}
+}
+
+func TestSecretBufferOwnership(t *testing.T) {
+	installFakeVaultGPG(t)
+	path := filepath.Join(t.TempDir(), "ownership.gopass")
+	input := []byte("caller-owned")
+	if err := CreateWithEntries(path, "", []Entry{{Key: "key", Secret: input}}); err != nil {
+		t.Fatalf("CreateWithEntries() error = %v", err)
+	}
+	if string(input) != "caller-owned" {
+		t.Fatalf("CreateWithEntries() modified caller input = %q", input)
+	}
+
+	selected := New(path, "")
+	first, err := selected.GetKey("key")
+	if err != nil {
+		t.Fatalf("GetKey() error = %v", err)
+	}
+	second, err := selected.GetKey("key")
+	if err != nil {
+		t.Fatalf("GetKey() error = %v", err)
+	}
+	first[0] = 'X'
+	if string(second) != "caller-owned" {
+		t.Fatalf("GetKey() returned aliased buffers: %q", second)
+	}
+	clear(first)
+	clear(second)
+
+	replacement := []byte("replacement")
+	if err := selected.AddKey("key", replacement, true); err != nil {
+		t.Fatalf("AddKey() error = %v", err)
+	}
+	if string(replacement) != "replacement" {
+		t.Fatalf("AddKey() modified caller input = %q", replacement)
+	}
+
+	entries, err := selected.Entries()
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	alias := entries[0].Secret
+	ClearEntries(entries)
+	if !bytes.Equal(alias, make([]byte, len(alias))) {
+		t.Fatalf("ClearEntries() left secret bytes = %q", alias)
+	}
+}
+
+func TestReplaceSecretWipesOldValueAndClonesInput(t *testing.T) {
+	old := []byte("old-value")
+	destination := old
+	input := []byte("new-value")
+	replaceSecret(&destination, input)
+
+	if !bytes.Equal(old, make([]byte, len(old))) {
+		t.Fatalf("replaceSecret() left old bytes = %q", old)
+	}
+	input[0] = 'X'
+	if string(destination) != "new-value" {
+		t.Fatalf("replaceSecret() retained caller buffer = %q", destination)
+	}
+	clear(destination)
+	clear(input)
+}
+
+func TestCSVSecretRoundTrip(t *testing.T) {
+	installFakeVaultGPG(t)
+	path := filepath.Join(t.TempDir(), "special.gopass")
+	expected := []Entry{
+		{Key: `key,with"quotes`, Secret: []byte("comma, quote\" and\r\nmultiple\nlines")},
+	}
+	if err := CreateWithEntries(path, "", expected); err != nil {
+		t.Fatalf("CreateWithEntries() error = %v", err)
+	}
+	entries, err := New(path, "").Entries()
+	if err != nil {
+		t.Fatalf("Entries() error = %v", err)
+	}
+	defer ClearEntries(entries)
+	// encoding/csv preserves the existing behavior of normalizing CRLF to LF.
+	decodedSecret := []byte("comma, quote\" and\nmultiple\nlines")
+	if len(entries) != 1 || entries[0].Key != expected[0].Key ||
+		!bytes.Equal(entries[0].Secret, decodedSecret) {
+		t.Fatalf("Entries() = %#v", entries)
+	}
+}
+
+func TestUnlockWipesPartialEntriesAfterParseError(t *testing.T) {
+	installFakeVaultGPG(t)
+	path := filepath.Join(t.TempDir(), "malformed.gopass")
+	if err := os.WriteFile(path, []byte("valid,secret\ninvalid\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	selected := New(path, "")
+	if err := selected.unlock(); err == nil {
+		t.Fatal("unlock() error = nil")
+	}
+	if selected.entries != nil {
+		t.Fatalf("unlock() retained partial entries = %#v", selected.entries)
 	}
 }
 
@@ -123,14 +228,15 @@ func TestEncryptedVaultWorkflow(t *testing.T) {
 		t.Fatalf("Create() error = %v", err)
 	}
 	selected := New(path, "")
-	if err := selected.AddKey("service/account", "secret", false); err != nil {
+	if err := selected.AddKey("service/account", []byte("secret"), false); err != nil {
 		t.Fatalf("AddKey() error = %v", err)
 	}
 	secret, err := selected.GetKey("service/account")
-	if err != nil || secret != "secret" {
+	if err != nil || string(secret) != "secret" {
 		t.Fatalf("GetKey() = %q, %v", secret, err)
 	}
-	if err := selected.AddKey("service/account", "duplicate", false); !errors.Is(err, ErrKeyExists) {
+	clear(secret)
+	if err := selected.AddKey("service/account", []byte("duplicate"), false); !errors.Is(err, ErrKeyExists) {
 		t.Fatalf("duplicate AddKey() error = %v", err)
 	}
 	if _, err := selected.GetKey("missing"); !errors.Is(err, ErrKeyNotFound) {

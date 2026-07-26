@@ -18,6 +18,20 @@ const (
 	grepExecutable  = "grep"
 )
 
+var unsafePagerEnvironment = map[string]struct{}{
+	"LESS":             {},
+	"LESSOPEN":         {},
+	"LESSCLOSE":        {},
+	"LESSKEY":          {},
+	"LESSKEYIN":        {},
+	"LESSSECURE":       {},
+	"LESSSECURE_ALLOW": {},
+	"LESSHISTFILE":     {},
+	"LESSANSIENDCHARS": {},
+	"LESSANSIOSCALLOW": {},
+	"LESSANSIOSCCHARS": {},
+}
+
 type getKeyInput struct {
 	key   string
 	grep  string
@@ -68,25 +82,25 @@ func (a *application) getKey(input *getKeyInput) error {
 			return err
 		}
 		defer vault.ClearEntries(entries)
-		matches, err := grepEntries(input.grep, entries)
+		matches, err := grepEntryIndexes(input.grep, entries)
 		if err != nil {
 			return err
 		}
-		defer vault.ClearEntries(matches)
-		return displayEntries(matches)
+		return displayEntries(entries, matches)
 	}
 	secret, err := selected.GetKey(input.key)
 	if err != nil {
 		return err
 	}
+	defer clear(secret)
 	return displaySecret(input.key, secret)
 }
 
-func displaySecret(key, secret string) error {
-	return displayEntries([]vault.Entry{{Key: key, Secret: secret}})
+func displaySecret(key string, secret []byte) error {
+	return displayEntries([]vault.Entry{{Key: key, Secret: secret}}, nil)
 }
 
-func grepEntries(pattern string, entries []vault.Entry) ([]vault.Entry, error) {
+func grepEntryIndexes(pattern string, entries []vault.Entry) ([]int, error) {
 	var keys strings.Builder
 	for _, entry := range entries {
 		keys.WriteString(entry.Key)
@@ -106,11 +120,11 @@ func grepEntries(pattern string, entries []vault.Entry) ([]vault.Entry, error) {
 		return nil, fmt.Errorf("grep keys: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
-	byKey := make(map[string][]vault.Entry, len(entries))
-	for _, entry := range entries {
-		byKey[entry.Key] = append(byKey[entry.Key], entry)
+	byKey := make(map[string][]int, len(entries))
+	for index, entry := range entries {
+		byKey[entry.Key] = append(byKey[entry.Key], index)
 	}
-	var matches []vault.Entry
+	var matches []int
 	scanner := bufio.NewScanner(&stdout)
 	for scanner.Scan() {
 		matches = append(matches, byKey[scanner.Text()]...)
@@ -124,20 +138,46 @@ func grepEntries(pattern string, entries []vault.Entry) ([]vault.Entry, error) {
 	return matches, nil
 }
 
-func displayEntries(entries []vault.Entry) error {
+func displayEntries(entries []vault.Entry, indexes []int) error {
 	var contentBuffer bytes.Buffer
-	for i, entry := range entries {
-		if i > 0 {
+	writeEntry := func(entry vault.Entry) {
+		if contentBuffer.Len() > 0 {
 			contentBuffer.WriteByte('\n')
 		}
-		fmt.Fprintf(&contentBuffer, "Key: %s\nSecret: %s\n", entry.Key, entry.Secret)
+		contentBuffer.WriteString("Key: ")
+		contentBuffer.WriteString(entry.Key)
+		contentBuffer.WriteString("\nSecret: ")
+		contentBuffer.Write(entry.Secret)
+		contentBuffer.WriteByte('\n')
+	}
+	if indexes == nil {
+		for _, entry := range entries {
+			writeEntry(entry)
+		}
+	} else {
+		for _, index := range indexes {
+			writeEntry(entries[index])
+		}
 	}
 	content := contentBuffer.Bytes()
 	defer clear(content)
 
-	command := exec.Command(pagerExecutable, "-R")
+	command := exec.Command(pagerExecutable)
 	command.Stdin = bytes.NewReader(content)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
+	command.Env = securePagerEnvironment()
 	return command.Run()
+}
+
+func securePagerEnvironment() []string {
+	environment := make([]string, 0, len(os.Environ())+2)
+	for _, variable := range os.Environ() {
+		name, _, _ := strings.Cut(variable, "=")
+		if _, unsafe := unsafePagerEnvironment[name]; unsafe {
+			continue
+		}
+		environment = append(environment, variable)
+	}
+	return append(environment, "LESSSECURE=1", "LESSHISTFILE=-")
 }

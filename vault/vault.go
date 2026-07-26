@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const (
@@ -35,7 +36,7 @@ type Vault struct {
 
 type Entry struct {
 	Key    string
-	Secret string
+	Secret []byte
 }
 
 func New(path, gpgRecipient string) *Vault {
@@ -67,7 +68,14 @@ func CreateWithEntries(path, gpgRecipient string, entries []Entry) error {
 	return encrypt(path, content, gpgRecipient, false)
 }
 
-func (v *Vault) unlock() error {
+func (v *Vault) unlock() (returnErr error) {
+	v.wipe()
+	defer func() {
+		if returnErr != nil {
+			v.wipe()
+		}
+	}()
+
 	command := exec.Command(gpgExecutable, "--quiet", "--decrypt", v.path)
 	command.Stdin = os.Stdin
 	command.Env = os.Environ()
@@ -75,12 +83,11 @@ func (v *Vault) unlock() error {
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
 	output, err := command.Output()
+	defer clear(output)
 	if err != nil {
 		return fmt.Errorf("%w: %w: %s", ErrDecryption, err, stderr.String())
 	}
-	defer clear(output)
 
-	v.entries = nil
 	reader := csv.NewReader(bytes.NewReader(output))
 	for {
 		record, err := reader.Read()
@@ -93,7 +100,14 @@ func (v *Vault) unlock() error {
 		if len(record) != 2 {
 			return ErrInvalidEntry
 		}
-		v.entries = append(v.entries, Entry{Key: record[0], Secret: record[1]})
+		// encoding/csv exposes fields as strings, so decoding necessarily creates
+		// a short-lived immutable copy. Clone the key so it cannot retain the
+		// record backing string that also held the secret, and keep only a
+		// mutable owned copy of the secret afterward.
+		v.entries = append(v.entries, Entry{
+			Key:    strings.Clone(record[0]),
+			Secret: []byte(record[1]),
+		})
 	}
 }
 
@@ -108,17 +122,28 @@ func (v *Vault) lock() error {
 
 func marshalEntries(entries []Entry) ([]byte, error) {
 	var content bytes.Buffer
-	writer := csv.NewWriter(&content)
 	for _, entry := range entries {
-		if err := writer.Write([]string{entry.Key, entry.Secret}); err != nil {
-			return nil, err
-		}
-	}
-	writer.Flush()
-	if err := writer.Error(); err != nil {
-		return nil, err
+		writeCSVField(&content, []byte(entry.Key))
+		content.WriteByte(',')
+		writeCSVField(&content, entry.Secret)
+		content.WriteByte('\n')
 	}
 	return content.Bytes(), nil
+}
+
+func writeCSVField(writer *bytes.Buffer, field []byte) {
+	if !bytes.ContainsAny(field, ",\"\r\n") {
+		writer.Write(field)
+		return
+	}
+	writer.WriteByte('"')
+	for _, value := range field {
+		if value == '"' {
+			writer.WriteByte('"')
+		}
+		writer.WriteByte(value)
+	}
+	writer.WriteByte('"')
 }
 
 func encrypt(path string, content []byte, gpgRecipient string, overwrite bool) error {
@@ -148,6 +173,7 @@ func encrypt(path string, content []byte, gpgRecipient string, overwrite bool) e
 	command := exec.Command(gpgExecutable, args...)
 	command.Stdin = bytes.NewReader(content)
 	output, err := command.CombinedOutput()
+	defer clear(output)
 	if err != nil {
 		return fmt.Errorf("%w: %w: %s", ErrEncryption, err, output)
 	}
@@ -179,8 +205,18 @@ func ClearEntries(entries []Entry) {
 func clearEntries(entries []Entry) {
 	for i := range entries {
 		entries[i].Key = ""
-		entries[i].Secret = ""
+		clear(entries[i].Secret)
+		entries[i].Secret = nil
 	}
+}
+
+func cloneSecret(secret []byte) []byte {
+	return bytes.Clone(secret)
+}
+
+func replaceSecret(destination *[]byte, source []byte) {
+	clear(*destination)
+	*destination = cloneSecret(source)
 }
 
 func (v *Vault) findEntry(key string) (*Entry, bool) {
@@ -192,7 +228,7 @@ func (v *Vault) findEntry(key string) (*Entry, bool) {
 	return nil, false
 }
 
-func (v *Vault) AddKey(key, secret string, overwrite bool) error {
+func (v *Vault) AddKey(key string, secret []byte, overwrite bool) error {
 	if err := v.unlock(); err != nil {
 		return err
 	}
@@ -202,24 +238,24 @@ func (v *Vault) AddKey(key, secret string, overwrite bool) error {
 		if !overwrite {
 			return fmt.Errorf("%w: %q", ErrKeyExists, key)
 		}
-		entry.Secret = secret
+		replaceSecret(&entry.Secret, secret)
 		return v.lock()
 	}
-	v.entries = append(v.entries, Entry{Key: key, Secret: secret})
+	v.entries = append(v.entries, Entry{Key: key, Secret: cloneSecret(secret)})
 	return v.lock()
 }
 
-func (v *Vault) GetKey(key string) (string, error) {
+func (v *Vault) GetKey(key string) ([]byte, error) {
 	if err := v.unlock(); err != nil {
-		return "", err
+		return nil, err
 	}
 	defer v.wipe()
 
 	entry, found := v.findEntry(key)
 	if !found {
-		return "", fmt.Errorf("%w: %q", ErrKeyNotFound, key)
+		return nil, fmt.Errorf("%w: %q", ErrKeyNotFound, key)
 	}
-	return entry.Secret, nil
+	return cloneSecret(entry.Secret), nil
 }
 
 func (v *Vault) Entries() ([]Entry, error) {
@@ -229,7 +265,9 @@ func (v *Vault) Entries() ([]Entry, error) {
 	defer v.wipe()
 
 	entries := make([]Entry, len(v.entries))
-	copy(entries, v.entries)
+	for i, entry := range v.entries {
+		entries[i] = Entry{Key: entry.Key, Secret: cloneSecret(entry.Secret)}
+	}
 	return entries, nil
 }
 
@@ -276,11 +314,14 @@ func (v *Vault) PutEntries(entries []Entry, overwrite bool) error {
 
 	for _, incoming := range entries {
 		if index, found := indices[incoming.Key]; found {
-			v.entries[index].Secret = incoming.Secret
+			replaceSecret(&v.entries[index].Secret, incoming.Secret)
 			continue
 		}
 		indices[incoming.Key] = len(v.entries)
-		v.entries = append(v.entries, incoming)
+		v.entries = append(v.entries, Entry{
+			Key:    incoming.Key,
+			Secret: cloneSecret(incoming.Secret),
+		})
 	}
 	return v.lock()
 }
