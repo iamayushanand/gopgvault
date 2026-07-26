@@ -16,6 +16,9 @@ const (
 	commandCreateVault   = "create-vault"
 	commandAddKey        = "add-key"
 	commandGetKey        = "get-key"
+	commandListKeys      = "list-keys"
+	commandImportSecrets = "import-secrets"
+	commandCopySecrets   = "copy-secrets"
 	DefaultVaultName     = "default"
 	vaultDirectoryName   = ".gopass"
 	vaultFileExtension   = ".gopass"
@@ -27,6 +30,8 @@ var (
 	ErrMissingArguments     = errors.New("operation is missing arguments")
 	ErrConfigNotInitialized = errors.New("config is not initialized")
 	ErrVaultNotFound        = errors.New("vault not found")
+	ErrNoMatchingKeys       = errors.New("no matching keys")
+	ErrSameVault            = errors.New("source and destination vaults must differ")
 )
 
 type application struct {
@@ -61,6 +66,9 @@ func NewRootCommand(args []string) *cobra.Command {
 		app.newCreateVaultCommand(),
 		app.newAddKeyCommand(),
 		app.newGetKeyCommand(),
+		app.newListKeysCommand(),
+		app.newImportSecretsCommand(),
+		app.newCopySecretsCommand(),
 	)
 	return root
 }
